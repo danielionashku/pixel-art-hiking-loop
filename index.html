@@ -23,83 +23,93 @@
             image-rendering: crisp-edges;
             image-rendering: pixelated;
         }
-        #ui {
+        #audio-controls {
             position: absolute;
             top: 10px;
-            left: 10px;
-            color: rgba(255, 255, 255, 0.7);
-            text-shadow: 1px 1px 0 #000;
-            pointer-events: none;
-            font-size: 14px;
-            letter-spacing: 1px;
-        }
-        #audio-menu {
-            position: absolute;
-            bottom: 16px;
-            right: 16px;
+            right: 10px;
             z-index: 10;
-            font-family: sans-serif;
-            font-size: 13px;
         }
         #audio-toggle {
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: rgba(255, 255, 255, 0.8);
-            font-size: 18px;
-            width: 38px;
-            height: 38px;
+            background: rgba(0,0,0,0.5);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 8px 12px;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.3s;
-            margin-left: auto;
+            font-size: 16px;
+            border-radius: 4px;
+            letter-spacing: 1px;
         }
-        #audio-toggle:hover { background: rgba(0, 0, 0, 0.7); }
+        #audio-toggle:hover {
+            background: rgba(0,0,0,0.7);
+        }
         #audio-panel {
-            background: rgba(0, 0, 0, 0.55);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            padding: 12px 14px;
-            margin-bottom: 8px;
             display: none;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            padding: 12px;
+            margin-top: 4px;
+            border-radius: 4px;
             min-width: 150px;
+            border: 1px solid rgba(255,255,255,0.15);
         }
-        #audio-panel.open { display: block; }
-        #audio-panel label {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: rgba(255, 255, 255, 0.8);
+        #audio-panel.open {
+            display: block;
+        }
+        .audio-slider {
+            margin: 8px 0;
+        }
+        .audio-slider label {
+            color: rgba(255,255,255,0.8);
+            font-size: 11px;
+            display: block;
+            margin-bottom: 3px;
+            letter-spacing: 0.5px;
+        }
+        .audio-slider input[type="range"] {
+            width: 100%;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+            outline: none;
+        }
+        .audio-slider input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            background: #fff;
+            border-radius: 50%;
             cursor: pointer;
-            padding: 5px 0;
-            transition: color 0.2s;
-            user-select: none;
-        }
-        #audio-panel label:hover { color: #fff; }
-        #audio-panel input[type="checkbox"] {
-            accent-color: #94a161;
-            width: 14px;
-            height: 14px;
-            cursor: pointer;
-        }
-        .audio-divider {
-            border: none;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            margin: 6px 0;
         }
     </style>
 </head>
 <body>
-    <div id="audio-menu">
+    <div id="audio-controls">
+        <button id="audio-toggle">&#9835; Sound</button>
         <div id="audio-panel">
-            <label><input type="checkbox" id="chk-birds"> Birds</label>
-            <label><input type="checkbox" id="chk-wind"> Wind</label>
-            <label><input type="checkbox" id="chk-sheep"> Sheep</label>
-            <hr class="audio-divider">
-            <label><input type="checkbox" id="chk-lofi"> Lofi Beats</label>
+            <div class="audio-slider">
+                <label>Music</label>
+                <input type="range" min="0" max="100" value="50" data-channel="music">
+            </div>
+            <div class="audio-slider">
+                <label>Wind</label>
+                <input type="range" min="0" max="100" value="50" data-channel="wind">
+            </div>
+            <div class="audio-slider">
+                <label>Birds</label>
+                <input type="range" min="0" max="100" value="30" data-channel="birds">
+            </div>
+            <div class="audio-slider">
+                <label>Steps</label>
+                <input type="range" min="0" max="100" value="40" data-channel="footsteps">
+            </div>
+            <div class="audio-slider">
+                <label>Sheep</label>
+                <input type="range" min="0" max="100" value="35" data-channel="sheep">
+            </div>
         </div>
-        <button id="audio-toggle" title="Audio settings">🔇</button>
     </div>
     <canvas id="game"></canvas>
 
@@ -107,7 +117,7 @@
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
 
-        const PIXEL_SCALE = 2.68;
+        const PIXEL_SCALE = 4;
         let cx = 0;
         let HORIZON = 0;
 
@@ -153,6 +163,8 @@
             hazeColor: { r: 138, g: 171, b: 110 },
 
             horizonHaze: { r: 215, g: 205, b: 170 },
+
+            groundLeafColors: ['#8b6e3e', '#7a5c2e', '#6b4e28', '#9a7a42', '#a08848', '#b5a142', '#99ad52', '#869947', '#d48d3d', '#c47830'],
         };
 
         const HAZE_FAR = 0.45;
@@ -293,16 +305,13 @@
             }
         }
 
-        // Stratified tree placement: alternates left/right, varied distances from center
-        function getStratifiedTreeX(index, total) {
-            let isLeft = (index % 2 === 0);
-            // Within each side, spread trees across range 350-1250
-            let sideIndex = Math.floor(index / 2);
-            let sideTotal = Math.ceil(total / 2);
-            // Use golden ratio spacing for natural-looking but even distribution
-            let t = (sideIndex + 0.3 + Math.random() * 0.4) / sideTotal;
-            let dist = 350 + t * 900; // Range 350 to 1250
-            return isLeft ? -dist : dist;
+        // Random tree placement across full width, excluding center path
+        function getRandomTreeX() {
+            let x;
+            do {
+                x = (Math.random() - 0.5) * 3000; // range -1500 to 1500
+            } while (Math.abs(x) < 180); // exclude center path zone
+            return x;
         }
 
         function getGrassVariant(x,z) {
@@ -316,25 +325,401 @@
             if (!trees.length) return;
             let tree=trees[Math.floor(Math.random()*trees.length)];
             let isPine=(tree.variant%2===0);
-            leaf.x=tree.x+(Math.random()-0.5)*120; leaf.z=tree.z+(Math.random()-0.5)*40;
-            leaf.y=-30-Math.random()*80; leaf.speedY=0.03+Math.random()*0.06;
+            leaf.x=tree.x+(Math.random()-0.5)*300; // wider X spread (+/-150)
+            leaf.z=tree.z-80+Math.random()*120; // range -80 to +40 from tree (negative = in front)
+            leaf.y=-10-Math.random()*130; // higher starting Y (-10 to -140)
+            leaf.speedY=0.03+Math.random()*0.06;
             leaf.treeType=isPine?0:1;
             let colors=isPine?PALETTE.pineLeavesHigh:PALETTE.oakLeafColors;
             leaf.color=colors[Math.floor(Math.random()*colors.length)];
         }
 
-        // Respawn tree with stratified left/right placement
-        function respawnTreeX() {
-            // Count current left vs right trees to maintain balance
-            let leftCount = 0, rightCount = 0;
-            entities.forEach(e => {
-                if (e.type === 'tree') {
-                    if (e.x < 0) leftCount++; else rightCount++;
+        // Ground leaf cluster functions
+        function createGroundLeaves() {
+            let groundLeaves = [];
+            let trees = entities.filter(e => e.type === 'tree');
+
+            // 3-5 leaves per tree base
+            trees.forEach(tree => {
+                let count = 3 + Math.floor(Math.random() * 3);
+                for (let i = 0; i < count; i++) {
+                    groundLeaves.push({
+                        type: 'groundLeaf',
+                        x: tree.x + (Math.random() - 0.5) * 120,
+                        y: CAMERA_Y,
+                        z: tree.z + (Math.random() - 0.5) * 60,
+                        color: PALETTE.groundLeafColors[Math.floor(Math.random() * PALETTE.groundLeafColors.length)],
+                        w: 2 + Math.random() * 3,
+                        h: 1.5 + Math.random() * 2,
+                    });
                 }
             });
-            let isLeft = leftCount <= rightCount;
-            let dist = 350 + Math.random() * 900;
-            return isLeft ? -dist : dist;
+
+            // 20 scattered random ground leaves
+            for (let i = 0; i < 20; i++) {
+                groundLeaves.push({
+                    type: 'groundLeaf',
+                    x: (Math.random() - 0.5) * 2000,
+                    y: CAMERA_Y,
+                    z: Math.random() * MAX_Z,
+                    color: PALETTE.groundLeafColors[Math.floor(Math.random() * PALETTE.groundLeafColors.length)],
+                    w: 2 + Math.random() * 3,
+                    h: 1.5 + Math.random() * 2,
+                });
+            }
+            return groundLeaves;
+        }
+
+        function drawGroundLeaf(sx, sy, scale, leaf) {
+            let w = Math.max(1, leaf.w * scale);
+            let h = Math.max(1, leaf.h * scale);
+            ctx.fillStyle = leaf.color;
+            ctx.fillRect(Math.round(sx - w/2), Math.round(sy - h), Math.round(w), Math.round(h));
+        }
+
+        // ===== AUDIO SYSTEM =====
+        let audioCtx = null;
+        let audioInitialized = false;
+        let audioPlaying = false;
+        let audioChannels = {
+            music: { gain: null, volume: 0.5, nodes: [] },
+            wind: { gain: null, volume: 0.5, nodes: [] },
+            birds: { gain: null, volume: 0.3, nodes: [] },
+            footsteps: { gain: null, volume: 0.4, nodes: [] },
+            sheep: { gain: null, volume: 0.35, nodes: [] }
+        };
+
+        function initAudio() {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            // Create gain nodes for each channel
+            for (let key in audioChannels) {
+                audioChannels[key].gain = audioCtx.createGain();
+                audioChannels[key].gain.gain.value = audioChannels[key].volume;
+                audioChannels[key].gain.connect(audioCtx.destination);
+            }
+
+            initLofiMusic();
+            initWind();
+            initBirds();
+            initSheep();
+            audioInitialized = true;
+            audioPlaying = true;
+        }
+
+        // Lofi Music: Triangle wave chord pads with vinyl crackle
+        function initLofiMusic() {
+            const chords = [
+                [349.23, 440.00, 523.25, 659.25],  // Fmaj7
+                [329.63, 392.00, 493.88, 587.33],  // Em7
+                [293.66, 349.23, 440.00, 523.25],  // Dm7
+                [261.63, 329.63, 392.00, 493.88]   // Cmaj7
+            ];
+
+            const bpm = 68;
+            const barDuration = (60 / bpm) * 4;
+            let currentChord = 0;
+            let musicTimeout = null;
+
+            function playChord() {
+                if (!audioCtx || audioCtx.state === 'closed') return;
+
+                const chord = chords[currentChord];
+                const now = audioCtx.currentTime;
+
+                chord.forEach(freq => {
+                    const osc = audioCtx.createOscillator();
+                    const oscGain = audioCtx.createGain();
+                    const filter = audioCtx.createBiquadFilter();
+
+                    osc.type = 'triangle';
+                    osc.frequency.value = freq + (Math.random() - 0.5) * 2; // slight detuning
+
+                    filter.type = 'lowpass';
+                    filter.frequency.value = 800;
+                    filter.Q.value = 1;
+
+                    oscGain.gain.setValueAtTime(0, now);
+                    oscGain.gain.linearRampToValueAtTime(0.07, now + 0.4);
+                    oscGain.gain.linearRampToValueAtTime(0.045, now + barDuration * 0.7);
+                    oscGain.gain.linearRampToValueAtTime(0, now + barDuration);
+
+                    osc.connect(filter);
+                    filter.connect(oscGain);
+                    oscGain.connect(audioChannels.music.gain);
+
+                    osc.start(now);
+                    osc.stop(now + barDuration + 0.1);
+                });
+
+                currentChord = (currentChord + 1) % chords.length;
+                musicTimeout = setTimeout(playChord, barDuration * 1000);
+            }
+
+            // Vinyl crackle overlay
+            const bufferSize = audioCtx.sampleRate * 2;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() < 0.003 ? (Math.random() - 0.5) * 0.3 : 0;
+            }
+
+            const crackleSource = audioCtx.createBufferSource();
+            const crackleGain = audioCtx.createGain();
+            const crackleFilter = audioCtx.createBiquadFilter();
+
+            crackleSource.buffer = buffer;
+            crackleSource.loop = true;
+
+            crackleFilter.type = 'bandpass';
+            crackleFilter.frequency.value = 3000;
+            crackleFilter.Q.value = 0.5;
+
+            crackleGain.gain.value = 0.15;
+
+            crackleSource.connect(crackleFilter);
+            crackleFilter.connect(crackleGain);
+            crackleGain.connect(audioChannels.music.gain);
+
+            crackleSource.start();
+            audioChannels.music.nodes.push(crackleSource);
+
+            playChord();
+        }
+
+        // Wind: Brown noise through modulated low-pass filter
+        function initWind() {
+            const bufferSize = audioCtx.sampleRate * 2;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+
+            let lastOut = 0;
+            for (let i = 0; i < bufferSize; i++) {
+                let white = Math.random() * 2 - 1;
+                data[i] = (lastOut + (0.02 * white)) / 1.02;
+                lastOut = data[i];
+                data[i] *= 3.5;
+            }
+
+            const source = audioCtx.createBufferSource();
+            source.buffer = buffer;
+            source.loop = true;
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 400;
+            filter.Q.value = 0.5;
+
+            // LFO for gusting effect
+            const lfo = audioCtx.createOscillator();
+            const lfoGain = audioCtx.createGain();
+            lfo.type = 'sine';
+            lfo.frequency.value = 0.15;
+            lfoGain.gain.value = 300;
+            lfo.connect(lfoGain);
+            lfoGain.connect(filter.frequency);
+            lfo.start();
+
+            const windGain = audioCtx.createGain();
+            windGain.gain.value = 0.3;
+
+            source.connect(filter);
+            filter.connect(windGain);
+            windGain.connect(audioChannels.wind.gain);
+
+            source.start();
+            audioChannels.wind.nodes.push(source, lfo);
+        }
+
+        // Birds: Periodic sine-wave chirps
+        function initBirds() {
+            function chirp() {
+                if (!audioCtx || audioCtx.state === 'closed' || !audioPlaying) return;
+
+                const now = audioCtx.currentTime;
+                const noteCount = 2 + Math.floor(Math.random() * 3);
+
+                for (let i = 0; i < noteCount; i++) {
+                    const osc = audioCtx.createOscillator();
+                    const oscGain = audioCtx.createGain();
+
+                    osc.type = 'sine';
+                    const baseFreq = 2000 + Math.random() * 2000;
+                    const noteStart = now + i * 0.12;
+                    const noteDuration = 0.06 + Math.random() * 0.06;
+
+                    osc.frequency.setValueAtTime(baseFreq, noteStart);
+                    osc.frequency.linearRampToValueAtTime(
+                        baseFreq * (1 + (Math.random() - 0.5) * 0.3),
+                        noteStart + noteDuration
+                    );
+
+                    oscGain.gain.setValueAtTime(0, noteStart);
+                    oscGain.gain.linearRampToValueAtTime(0.06, noteStart + 0.01);
+                    oscGain.gain.linearRampToValueAtTime(0, noteStart + noteDuration);
+
+                    osc.connect(oscGain);
+                    oscGain.connect(audioChannels.birds.gain);
+
+                    osc.start(noteStart);
+                    osc.stop(noteStart + noteDuration + 0.01);
+                }
+
+                setTimeout(chirp, 3000 + Math.random() * 5000);
+            }
+
+            setTimeout(chirp, 1000 + Math.random() * 2000);
+        }
+
+        // Sheep: Periodic "baa" sounds
+        function initSheep() {
+            function baa() {
+                if (!audioCtx || audioCtx.state === 'closed' || !audioPlaying) return;
+
+                const now = audioCtx.currentTime;
+                const duration = 0.4 + Math.random() * 0.3;
+                const baseFreq = 280 + Math.random() * 120;
+
+                // Main voice oscillator
+                const osc = audioCtx.createOscillator();
+                const oscGain = audioCtx.createGain();
+                const filter = audioCtx.createBiquadFilter();
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(baseFreq, now);
+                osc.frequency.linearRampToValueAtTime(baseFreq * 1.15, now + duration * 0.3);
+                osc.frequency.linearRampToValueAtTime(baseFreq * 0.9, now + duration);
+
+                // Vibrato for "baa" quality
+                const vibrato = audioCtx.createOscillator();
+                const vibratoGain = audioCtx.createGain();
+                vibrato.type = 'sine';
+                vibrato.frequency.value = 8 + Math.random() * 4;
+                vibratoGain.gain.value = 15;
+                vibrato.connect(vibratoGain);
+                vibratoGain.connect(osc.frequency);
+                vibrato.start(now);
+                vibrato.stop(now + duration + 0.05);
+
+                filter.type = 'bandpass';
+                filter.frequency.value = 800;
+                filter.Q.value = 2;
+
+                oscGain.gain.setValueAtTime(0, now);
+                oscGain.gain.linearRampToValueAtTime(0.12, now + 0.04);
+                oscGain.gain.setValueAtTime(0.1, now + duration * 0.4);
+                oscGain.gain.linearRampToValueAtTime(0, now + duration);
+
+                osc.connect(filter);
+                filter.connect(oscGain);
+                oscGain.connect(audioChannels.sheep.gain);
+
+                osc.start(now);
+                osc.stop(now + duration + 0.05);
+
+                // Occasional double-baa
+                if (Math.random() < 0.3) {
+                    const delay = duration + 0.15;
+                    const osc2 = audioCtx.createOscillator();
+                    const osc2Gain = audioCtx.createGain();
+                    const filter2 = audioCtx.createBiquadFilter();
+                    const dur2 = 0.25 + Math.random() * 0.15;
+
+                    osc2.type = 'sawtooth';
+                    osc2.frequency.setValueAtTime(baseFreq * 1.05, now + delay);
+                    osc2.frequency.linearRampToValueAtTime(baseFreq * 0.85, now + delay + dur2);
+
+                    const vib2 = audioCtx.createOscillator();
+                    const vib2Gain = audioCtx.createGain();
+                    vib2.type = 'sine';
+                    vib2.frequency.value = 10;
+                    vib2Gain.gain.value = 12;
+                    vib2.connect(vib2Gain);
+                    vib2Gain.connect(osc2.frequency);
+                    vib2.start(now + delay);
+                    vib2.stop(now + delay + dur2 + 0.05);
+
+                    filter2.type = 'bandpass';
+                    filter2.frequency.value = 800;
+                    filter2.Q.value = 2;
+
+                    osc2Gain.gain.setValueAtTime(0, now + delay);
+                    osc2Gain.gain.linearRampToValueAtTime(0.08, now + delay + 0.03);
+                    osc2Gain.gain.linearRampToValueAtTime(0, now + delay + dur2);
+
+                    osc2.connect(filter2);
+                    filter2.connect(osc2Gain);
+                    osc2Gain.connect(audioChannels.sheep.gain);
+
+                    osc2.start(now + delay);
+                    osc2.stop(now + delay + dur2 + 0.05);
+                }
+
+                setTimeout(baa, 8000 + Math.random() * 12000);
+            }
+
+            setTimeout(baa, 2000 + Math.random() * 5000);
+        }
+
+        // Footsteps: Noise bursts synced to walk phase
+        let lastFootstepPhase = 0;
+        function updateFootsteps() {
+            if (!audioCtx || !audioInitialized || !audioPlaying) return;
+
+            let walkPhase = time * 0.014;
+            let currentPhase = Math.sin(walkPhase);
+
+            if ((lastFootstepPhase >= 0 && currentPhase < 0) || (lastFootstepPhase <= 0 && currentPhase > 0)) {
+                const now = audioCtx.currentTime;
+                const sampleLen = Math.floor(audioCtx.sampleRate * 0.08);
+                const buffer = audioCtx.createBuffer(1, sampleLen, audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+
+                for (let i = 0; i < sampleLen; i++) {
+                    const env = Math.exp(-i / (sampleLen * 0.15));
+                    data[i] = (Math.random() * 2 - 1) * env * 0.5;
+                }
+
+                const source = audioCtx.createBufferSource();
+                source.buffer = buffer;
+
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 600 + Math.random() * 200;
+                filter.Q.value = 0.5;
+
+                source.connect(filter);
+                filter.connect(audioChannels.footsteps.gain);
+
+                source.start(now);
+            }
+
+            lastFootstepPhase = currentPhase;
+        }
+
+        // Audio UI logic
+        function setupAudioUI() {
+            const toggleBtn = document.getElementById('audio-toggle');
+            const panel = document.getElementById('audio-panel');
+
+            toggleBtn.addEventListener('click', () => {
+                if (!audioInitialized) {
+                    initAudio();
+                    toggleBtn.textContent = '\u266B Sound';
+                }
+                panel.classList.toggle('open');
+            });
+
+            document.querySelectorAll('.audio-slider input[type="range"]').forEach(slider => {
+                slider.addEventListener('input', (e) => {
+                    const channel = e.target.dataset.channel;
+                    const value = e.target.value / 100;
+                    audioChannels[channel].volume = value;
+                    if (audioChannels[channel].gain) {
+                        audioChannels[channel].gain.gain.value = value;
+                    }
+                });
+            });
         }
 
         function init() {
@@ -343,9 +728,9 @@
             for (let i=0; i<TREE_COUNT; i++) {
                 entities.push({
                     type:'tree',
-                    x: getStratifiedTreeX(i, TREE_COUNT),
+                    x: getRandomTreeX(),
                     y:CAMERA_Y,
-                    z: (i / TREE_COUNT) * MAX_Z + Math.random() * (MAX_Z / TREE_COUNT), // stratified Z too
+                    z: (i / TREE_COUNT) * MAX_Z + Math.random() * (MAX_Z / TREE_COUNT),
                     variant:Math.floor(Math.random()*6),
                     hScale:0.8+Math.random()*0.7
                 });
@@ -357,12 +742,19 @@
             for (let i=0; i<80; i++) {
                 let leaf={type:'leaf'}; resetLeaf(leaf); leaf.y+=Math.random()*100; entities.push(leaf);
             }
+
+            // Create ground leaf clusters
+            let groundLeaves = createGroundLeaves();
+            groundLeaves.forEach(gl => entities.push(gl));
+
             for (let i=0; i<6; i++) {
                 clouds.push({ x:Math.random()*canvas.width, y:Math.random()*(HORIZON-50), w:40+Math.random()*80, h:15+Math.random()*20, speed:0.02+Math.random()*0.03 });
             }
             for (let i=0; i<5; i++) {
                 birds.push({ x:Math.random()*canvas.width, y:10+Math.random()*(HORIZON/2), offset:Math.random()*100 });
             }
+
+            setupAudioUI();
             requestAnimationFrame(loop);
         }
 
@@ -563,7 +955,7 @@
         }
 
         function drawLeaf(sx,sy,scale,leaf) {
-            let w=Math.max(1,(leaf.treeType===0?1.5:3)*scale), h=Math.max(1,(leaf.treeType===0?4:3)*scale);
+            let w=Math.max(1,(leaf.treeType===0?4:7)*scale), h=Math.max(1,(leaf.treeType===0?10:7)*scale);
             drawRect(sx,sy,w,h,leaf.color);
         }
 
@@ -640,13 +1032,22 @@
 
         function loop(timestamp) {
             time+=3; cameraZ+=SPEED;
+
+            // Update footsteps audio
+            updateFootsteps();
+
             entities.forEach(e => {
                 if (e.type==='leaf') { e.y+=e.speedY; e.x+=Math.sin(time*0.001+e.z)*0.5; }
                 let relZ=e.z-cameraZ;
                 if (relZ<1||(e.type==='leaf'&&e.y>CAMERA_Y)) {
-                    if (e.type==='tree') { e.z+=MAX_Z; e.x=respawnTreeX(); e.hScale=0.8+Math.random()*0.7; }
+                    if (e.type==='tree') { e.z+=MAX_Z; e.x=getRandomTreeX(); e.hScale=0.8+Math.random()*0.7; }
                     else if (e.type==='grass') { e.z+=MAX_Z; e.x=(Math.random()-0.5)*2000; e.variant=getGrassVariant(e.x,e.z); }
                     else if (e.type==='leaf') { resetLeaf(e); relZ=e.z-cameraZ; }
+                    else if (e.type==='groundLeaf') {
+                        e.z+=MAX_Z;
+                        e.x=(Math.random()-0.5)*2000;
+                        e.color=PALETTE.groundLeafColors[Math.floor(Math.random()*PALETTE.groundLeafColors.length)];
+                    }
                 }
                 e.relZ=relZ;
             });
@@ -659,265 +1060,11 @@
                 if (e.type==='tree') drawTree(sx,sy,scale,e.x,e.z,e.variant,e.hScale,e.relZ);
                 if (e.type==='leaf') drawLeaf(sx,sy,scale,e);
                 if (e.type==='grass') drawGrass(sx,sy,scale,e.variant);
+                if (e.type==='groundLeaf') drawGroundLeaf(sx,sy,scale,e);
             });
             drawCharacter();
             requestAnimationFrame(loop);
         }
-
-        // === AUDIO SYSTEM ===
-        const SFX = {
-            ctx: null,
-            initialized: false,
-            panelOpen: false,
-
-            // Per-channel gain nodes
-            birdsGain: null,
-            windGain: null,
-            sheepGain: null,
-            lofiGain: null,
-
-            // State
-            birdsOn: false,
-            windOn: false,
-            sheepOn: false,
-            lofiOn: false,
-
-            sheepBuffer: null,
-            lofiBuffers: [],
-            lofiTracks: [
-                'https://archive.org/download/kalaido-hanging-lanterns_202101/%5BNon%20Copyrighted%20Music%5D%20Artificial.Music%20-%20Herbal%20Tea%20%5BLo-fi%5D.mp3',
-                'https://archive.org/download/kalaido-hanging-lanterns_202101/Tranquillity%20-%20Chill%20Lofi%20Hip%20Hop%20Beat%20%28FREE%20FOR%20PROFIT%20USE%29.mp3',
-                'https://archive.org/download/kalaido-hanging-lanterns_202101/%5BNo%20Copyright%20Music%5D%20Chill%20Jazzy%20Lofi%20Hip-Hop%20Beat%20%28Copyright%20Free%29%20Music%20By%20KaizanBlu.mp3',
-                'https://archive.org/download/kalaido-hanging-lanterns_202101/(FREE)%20Lo-fi%20Type%20Beat%20-%20Rain.mp3',
-                'https://archive.org/download/kalaido-hanging-lanterns_202101/Kronicle%20-%20Lofi%20Experimentin%20%28No%20Copyright%20Hip%20Hop%20Music%29.mp3'
-            ],
-
-            async init() {
-                if (this.initialized) return;
-                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-
-                this.birdsGain = this.ctx.createGain();
-                this.birdsGain.gain.value = 0;
-                this.birdsGain.connect(this.ctx.destination);
-
-                this.windGain = this.ctx.createGain();
-                this.windGain.gain.value = 0;
-                this.windGain.connect(this.ctx.destination);
-
-                this.sheepGain = this.ctx.createGain();
-                this.sheepGain.gain.value = 0;
-                this.sheepGain.connect(this.ctx.destination);
-
-                this.lofiGain = this.ctx.createGain();
-                this.lofiGain.gain.value = 0;
-                this.lofiGain.connect(this.ctx.destination);
-
-                this.initialized = true;
-
-                this.createWind();
-                this.createLeaves();
-                this.loadBirds();
-                this.loadSheep();
-                this.loadLofiPlaylist();
-            },
-
-            async ensure() {
-                if (!this.initialized) await this.init();
-                if (this.ctx.state === 'suspended') await this.ctx.resume();
-            },
-
-            updateIcon() {
-                const btn = document.getElementById('audio-toggle');
-                btn.textContent = (this.birdsOn || this.windOn || this.sheepOn || this.lofiOn) ? '🔊' : '🔇';
-            },
-
-            async setChannel(name, on) {
-                await this.ensure();
-                this[name + 'On'] = on;
-                this[name + 'Gain'].gain.linearRampToValueAtTime(on ? 1.0 : 0, this.ctx.currentTime + 0.8);
-                this.updateIcon();
-            },
-
-            togglePanel() {
-                this.panelOpen = !this.panelOpen;
-                document.getElementById('audio-panel').classList.toggle('open', this.panelOpen);
-            },
-
-            // --- Wind + leaves (single channel) ---
-
-            createWind() {
-                const sr = this.ctx.sampleRate;
-                const buf = this.ctx.createBuffer(1, 2 * sr, sr);
-                const data = buf.getChannelData(0);
-                let last = 0;
-                for (let i = 0; i < data.length; i++) {
-                    const white = Math.random() * 2 - 1;
-                    data[i] = (last + 0.02 * white) / 1.02;
-                    last = data[i];
-                    data[i] *= 3.5;
-                }
-                const src = this.ctx.createBufferSource();
-                src.buffer = buf;
-                src.loop = true;
-
-                const filter = this.ctx.createBiquadFilter();
-                filter.type = 'lowpass';
-                filter.frequency.value = 220;
-
-                const lfo = this.ctx.createOscillator();
-                const lfoGain = this.ctx.createGain();
-                lfo.type = 'sine';
-                lfo.frequency.value = 0.03;
-                lfoGain.gain.value = 15;
-                lfo.connect(lfoGain);
-                lfoGain.connect(filter.frequency);
-                lfo.start();
-
-                const gain = this.ctx.createGain();
-                gain.gain.value = 0.006;
-
-                src.connect(filter);
-                filter.connect(gain);
-                gain.connect(this.windGain);
-                src.start();
-            },
-
-            createLeaves() {
-                const sr = this.ctx.sampleRate;
-                const buf = this.ctx.createBuffer(1, 2 * sr, sr);
-                const data = buf.getChannelData(0);
-                let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
-                for (let i = 0; i < data.length; i++) {
-                    const w = Math.random() * 2 - 1;
-                    b0=0.99886*b0+w*0.0555179;
-                    b1=0.99332*b1+w*0.0750759;
-                    b2=0.96900*b2+w*0.1538520;
-                    b3=0.86650*b3+w*0.3104856;
-                    b4=0.55000*b4+w*0.5329522;
-                    b5=-0.7616*b5-w*0.0168980;
-                    data[i]=(b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.11;
-                    b6=w*0.115926;
-                }
-                const src = this.ctx.createBufferSource();
-                src.buffer = buf;
-                src.loop = true;
-
-                const bp = this.ctx.createBiquadFilter();
-                bp.type = 'bandpass';
-                bp.frequency.value = 2200;
-                bp.Q.value = 0.5;
-
-                const lfo = this.ctx.createOscillator();
-                const lfoGain = this.ctx.createGain();
-                lfo.frequency.value = 0.25;
-                lfoGain.gain.value = 0.03;
-                lfo.connect(lfoGain);
-
-                const gain = this.ctx.createGain();
-                gain.gain.value = 0.06;
-                lfoGain.connect(gain.gain);
-
-                src.connect(bp);
-                bp.connect(gain);
-                gain.connect(this.windGain);
-                lfo.start();
-                src.start();
-            },
-
-            // --- Birds ---
-
-            async loadBirds() {
-                try {
-                    const resp = await fetch('https://cdn.jsdelivr.net/gh/abetusk/noixer@master/assets/517042__sonidosreales245__forestday-bw-66.mp3');
-                    const arr = await resp.arrayBuffer();
-                    const buf = await this.ctx.decodeAudioData(arr);
-                    const src = this.ctx.createBufferSource();
-                    src.buffer = buf;
-                    src.loop = true;
-                    const gain = this.ctx.createGain();
-                    gain.gain.value = 0.18;
-                    src.connect(gain);
-                    gain.connect(this.birdsGain);
-                    src.start();
-                } catch(e) { console.warn('Birds failed:', e); }
-            },
-
-            // --- Sheep ---
-
-            async loadSheep() {
-                try {
-                    const resp = await fetch('https://archive.org/download/SheepSound/SheepSound.mp3');
-                    const arr = await resp.arrayBuffer();
-                    this.sheepBuffer = await this.ctx.decodeAudioData(arr);
-                    this.scheduleSheep();
-                } catch(e) { console.warn('Sheep failed:', e); }
-            },
-
-            scheduleSheep() {
-                if (!this.sheepBuffer) return;
-                const delay = 12000 + Math.random() * 25000; // 12-37s
-                setTimeout(() => {
-                    if (this.sheepOn) {
-                        const src = this.ctx.createBufferSource();
-                        src.buffer = this.sheepBuffer;
-                        src.playbackRate.value = 0.85 + Math.random() * 0.3;
-
-                        const filter = this.ctx.createBiquadFilter();
-                        filter.type = 'lowpass';
-                        filter.frequency.value = 1000 + Math.random() * 400;
-
-                        const gain = this.ctx.createGain();
-                        gain.gain.value = 0.04 + Math.random() * 0.03;
-
-                        const pan = this.ctx.createStereoPanner();
-                        pan.pan.value = (Math.random() - 0.5) * 1.6;
-
-                        src.connect(filter);
-                        filter.connect(gain);
-                        gain.connect(pan);
-                        pan.connect(this.sheepGain);
-                        src.start();
-                    }
-                    this.scheduleSheep();
-                }, delay);
-            },
-
-            // --- Lofi music ---
-
-            async loadLofiPlaylist() {
-                for (const url of this.lofiTracks) {
-                    try {
-                        const resp = await fetch(url);
-                        const arr = await resp.arrayBuffer();
-                        const buf = await this.ctx.decodeAudioData(arr);
-                        this.lofiBuffers.push(buf);
-                    } catch(e) { console.warn('Lofi track failed:', url, e); }
-                }
-                if (this.lofiBuffers.length > 0) this.playLofiTrack(0);
-            },
-
-            playLofiTrack(index) {
-                if (!this.lofiBuffers.length) return;
-                const i = index % this.lofiBuffers.length;
-                const src = this.ctx.createBufferSource();
-                src.buffer = this.lofiBuffers[i];
-
-                const gain = this.ctx.createGain();
-                gain.gain.value = 0.35;
-
-                src.connect(gain);
-                gain.connect(this.lofiGain);
-                src.start();
-
-                src.onended = () => this.playLofiTrack(i + 1);
-            }
-        };
-
-        document.getElementById('audio-toggle').addEventListener('click', () => SFX.togglePanel());
-        document.getElementById('chk-birds').addEventListener('change', (e) => SFX.setChannel('birds', e.target.checked));
-        document.getElementById('chk-wind').addEventListener('change', (e) => SFX.setChannel('wind', e.target.checked));
-        document.getElementById('chk-sheep').addEventListener('change', (e) => SFX.setChannel('sheep', e.target.checked));
-        document.getElementById('chk-lofi').addEventListener('change', (e) => SFX.setChannel('lofi', e.target.checked));
 
         init();
     </script>
