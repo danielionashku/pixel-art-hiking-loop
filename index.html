@@ -91,10 +91,12 @@
     </style>
 </head>
 <body>
-    <div id="ui">A Scenic Walk...</div>
     <div id="audio-menu">
         <div id="audio-panel">
-            <label><input type="checkbox" id="chk-nature"> Nature Sounds</label>
+            <label><input type="checkbox" id="chk-birds"> Birds</label>
+            <label><input type="checkbox" id="chk-wind"> Wind</label>
+            <label><input type="checkbox" id="chk-sheep"> Sheep</label>
+            <hr class="audio-divider">
             <label><input type="checkbox" id="chk-lofi"> Lofi Beats</label>
         </div>
         <button id="audio-toggle" title="Audio settings">🔇</button>
@@ -663,31 +665,48 @@
         }
 
         // === AUDIO SYSTEM ===
-        const Audio = {
+        const SFX = {
             ctx: null,
-            natureGain: null,
-            lofiGain: null,
             initialized: false,
             panelOpen: false,
-            natureOn: false,
+
+            // Per-channel gain nodes
+            birdsGain: null,
+            windGain: null,
+            sheepGain: null,
+            lofiGain: null,
+
+            // State
+            birdsOn: false,
+            windOn: false,
+            sheepOn: false,
             lofiOn: false,
+
             sheepBuffer: null,
+            lofiBuffers: [],
             lofiTracks: [
-                'https://archive.org/download/kalaido-hanging-lanterns_202101/Kalaido%20-%20Hanging%20Lanterns.mp3',
-                'https://archive.org/download/kalaido-hanging-lanterns_202101/Kerusu%20-%20First%20Snow.mp3',
-                'https://archive.org/download/kalaido-hanging-lanterns_202101/flovry%20-%20car%20radio.mp3',
-                'https://archive.org/download/kalaido-hanging-lanterns_202101/Matt%20Quentin%20-%20Waves.mp3'
+                'https://archive.org/download/kalaido-hanging-lanterns_202101/%5BNon%20Copyrighted%20Music%5D%20Artificial.Music%20-%20Herbal%20Tea%20%5BLo-fi%5D.mp3',
+                'https://archive.org/download/kalaido-hanging-lanterns_202101/Tranquillity%20-%20Chill%20Lofi%20Hip%20Hop%20Beat%20%28FREE%20FOR%20PROFIT%20USE%29.mp3',
+                'https://archive.org/download/kalaido-hanging-lanterns_202101/%5BNo%20Copyright%20Music%5D%20Chill%20Jazzy%20Lofi%20Hip-Hop%20Beat%20%28Copyright%20Free%29%20Music%20By%20KaizanBlu.mp3',
+                'https://archive.org/download/kalaido-hanging-lanterns_202101/(FREE)%20Lo-fi%20Type%20Beat%20-%20Rain.mp3',
+                'https://archive.org/download/kalaido-hanging-lanterns_202101/Kronicle%20-%20Lofi%20Experimentin%20%28No%20Copyright%20Hip%20Hop%20Music%29.mp3'
             ],
-            currentLofiIndex: 0,
-            lofiSource: null,
 
             async init() {
                 if (this.initialized) return;
                 this.ctx = new (window.AudioContext || window.webkitAudioContext)();
 
-                this.natureGain = this.ctx.createGain();
-                this.natureGain.gain.value = 0;
-                this.natureGain.connect(this.ctx.destination);
+                this.birdsGain = this.ctx.createGain();
+                this.birdsGain.gain.value = 0;
+                this.birdsGain.connect(this.ctx.destination);
+
+                this.windGain = this.ctx.createGain();
+                this.windGain.gain.value = 0;
+                this.windGain.connect(this.ctx.destination);
+
+                this.sheepGain = this.ctx.createGain();
+                this.sheepGain.gain.value = 0;
+                this.sheepGain.connect(this.ctx.destination);
 
                 this.lofiGain = this.ctx.createGain();
                 this.lofiGain.gain.value = 0;
@@ -709,20 +728,13 @@
 
             updateIcon() {
                 const btn = document.getElementById('audio-toggle');
-                btn.textContent = (this.natureOn || this.lofiOn) ? '🔊' : '🔇';
+                btn.textContent = (this.birdsOn || this.windOn || this.sheepOn || this.lofiOn) ? '🔊' : '🔇';
             },
 
-            async setNature(on) {
+            async setChannel(name, on) {
                 await this.ensure();
-                this.natureOn = on;
-                this.natureGain.gain.linearRampToValueAtTime(on ? 1.0 : 0, this.ctx.currentTime + 0.8);
-                this.updateIcon();
-            },
-
-            async setLofi(on) {
-                await this.ensure();
-                this.lofiOn = on;
-                this.lofiGain.gain.linearRampToValueAtTime(on ? 1.0 : 0, this.ctx.currentTime + 0.8);
+                this[name + 'On'] = on;
+                this[name + 'Gain'].gain.linearRampToValueAtTime(on ? 1.0 : 0, this.ctx.currentTime + 0.8);
                 this.updateIcon();
             },
 
@@ -731,7 +743,7 @@
                 document.getElementById('audio-panel').classList.toggle('open', this.panelOpen);
             },
 
-            // --- Nature sounds ---
+            // --- Wind + leaves (single channel) ---
 
             createWind() {
                 const sr = this.ctx.sampleRate;
@@ -750,24 +762,23 @@
 
                 const filter = this.ctx.createBiquadFilter();
                 filter.type = 'lowpass';
-                filter.frequency.value = 250;
+                filter.frequency.value = 220;
 
-                // Very subtle variation — no rhythmic pulsing
                 const lfo = this.ctx.createOscillator();
                 const lfoGain = this.ctx.createGain();
                 lfo.type = 'sine';
                 lfo.frequency.value = 0.03;
-                lfoGain.gain.value = 20;
+                lfoGain.gain.value = 15;
                 lfo.connect(lfoGain);
                 lfoGain.connect(filter.frequency);
                 lfo.start();
 
                 const gain = this.ctx.createGain();
-                gain.gain.value = 0.012;
+                gain.gain.value = 0.006;
 
                 src.connect(filter);
                 filter.connect(gain);
-                gain.connect(this.natureGain);
+                gain.connect(this.windGain);
                 src.start();
             },
 
@@ -808,10 +819,12 @@
 
                 src.connect(bp);
                 bp.connect(gain);
-                gain.connect(this.natureGain);
+                gain.connect(this.windGain);
                 lfo.start();
                 src.start();
             },
+
+            // --- Birds ---
 
             async loadBirds() {
                 try {
@@ -824,10 +837,12 @@
                     const gain = this.ctx.createGain();
                     gain.gain.value = 0.18;
                     src.connect(gain);
-                    gain.connect(this.natureGain);
+                    gain.connect(this.birdsGain);
                     src.start();
                 } catch(e) { console.warn('Birds failed:', e); }
             },
+
+            // --- Sheep ---
 
             async loadSheep() {
                 try {
@@ -840,9 +855,9 @@
 
             scheduleSheep() {
                 if (!this.sheepBuffer) return;
-                const delay = 30000 + Math.random() * 50000; // 30-80s apart
+                const delay = 12000 + Math.random() * 25000; // 12-37s
                 setTimeout(() => {
-                    if (this.natureOn) {
+                    if (this.sheepOn) {
                         const src = this.ctx.createBufferSource();
                         src.buffer = this.sheepBuffer;
                         src.playbackRate.value = 0.85 + Math.random() * 0.3;
@@ -860,7 +875,7 @@
                         src.connect(filter);
                         filter.connect(gain);
                         gain.connect(pan);
-                        pan.connect(this.natureGain);
+                        pan.connect(this.sheepGain);
                         src.start();
                     }
                     this.scheduleSheep();
@@ -870,7 +885,6 @@
             // --- Lofi music ---
 
             async loadLofiPlaylist() {
-                this.lofiBuffers = [];
                 for (const url of this.lofiTracks) {
                     try {
                         const resp = await fetch(url);
@@ -894,15 +908,16 @@
                 src.connect(gain);
                 gain.connect(this.lofiGain);
                 src.start();
-                this.lofiSource = src;
 
                 src.onended = () => this.playLofiTrack(i + 1);
             }
         };
 
-        document.getElementById('audio-toggle').addEventListener('click', () => Audio.togglePanel());
-        document.getElementById('chk-nature').addEventListener('change', (e) => Audio.setNature(e.target.checked));
-        document.getElementById('chk-lofi').addEventListener('change', (e) => Audio.setLofi(e.target.checked));
+        document.getElementById('audio-toggle').addEventListener('click', () => SFX.togglePanel());
+        document.getElementById('chk-birds').addEventListener('change', (e) => SFX.setChannel('birds', e.target.checked));
+        document.getElementById('chk-wind').addEventListener('change', (e) => SFX.setChannel('wind', e.target.checked));
+        document.getElementById('chk-sheep').addEventListener('change', (e) => SFX.setChannel('sheep', e.target.checked));
+        document.getElementById('chk-lofi').addEventListener('change', (e) => SFX.setChannel('lofi', e.target.checked));
 
         init();
     </script>
