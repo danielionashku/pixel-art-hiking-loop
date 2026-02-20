@@ -33,29 +33,72 @@
             font-size: 14px;
             letter-spacing: 1px;
         }
-        #sound-btn {
+        #audio-menu {
             position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(255, 255, 255, 0.25);
+            bottom: 16px;
+            right: 16px;
+            z-index: 10;
+            font-family: sans-serif;
+            font-size: 13px;
+        }
+        #audio-toggle {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.2);
             color: rgba(255, 255, 255, 0.8);
-            font-size: 20px;
-            width: 40px;
-            height: 40px;
+            font-size: 18px;
+            width: 38px;
+            height: 38px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: background 0.3s;
-            z-index: 10;
+            margin-left: auto;
         }
-        #sound-btn:hover { background: rgba(0, 0, 0, 0.6); }
+        #audio-toggle:hover { background: rgba(0, 0, 0, 0.7); }
+        #audio-panel {
+            background: rgba(0, 0, 0, 0.55);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 12px 14px;
+            margin-bottom: 8px;
+            display: none;
+            min-width: 150px;
+        }
+        #audio-panel.open { display: block; }
+        #audio-panel label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            padding: 5px 0;
+            transition: color 0.2s;
+            user-select: none;
+        }
+        #audio-panel label:hover { color: #fff; }
+        #audio-panel input[type="checkbox"] {
+            accent-color: #94a161;
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+        }
+        .audio-divider {
+            border: none;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            margin: 6px 0;
+        }
     </style>
 </head>
 <body>
     <div id="ui">A Scenic Walk...</div>
-    <button id="sound-btn" title="Toggle sound">🔇</button>
+    <div id="audio-menu">
+        <div id="audio-panel">
+            <label><input type="checkbox" id="chk-nature"> Nature Sounds</label>
+            <label><input type="checkbox" id="chk-lofi"> Lofi Beats</label>
+        </div>
+        <button id="audio-toggle" title="Audio settings">🔇</button>
+    </div>
     <canvas id="game"></canvas>
 
     <script>
@@ -619,37 +662,76 @@
             requestAnimationFrame(loop);
         }
 
-        // === AMBIENT SOUND SYSTEM ===
-        const Sound = {
+        // === AUDIO SYSTEM ===
+        const Audio = {
             ctx: null,
-            master: null,
-            active: false,
+            natureGain: null,
+            lofiGain: null,
             initialized: false,
+            panelOpen: false,
+            natureOn: false,
+            lofiOn: false,
+            sheepBuffer: null,
+            lofiTracks: [
+                'https://archive.org/download/kalaido-hanging-lanterns_202101/Kalaido%20-%20Hanging%20Lanterns.mp3',
+                'https://archive.org/download/kalaido-hanging-lanterns_202101/Kerusu%20-%20First%20Snow.mp3',
+                'https://archive.org/download/kalaido-hanging-lanterns_202101/flovry%20-%20car%20radio.mp3',
+                'https://archive.org/download/kalaido-hanging-lanterns_202101/Matt%20Quentin%20-%20Waves.mp3'
+            ],
+            currentLofiIndex: 0,
+            lofiSource: null,
 
             async init() {
                 if (this.initialized) return;
                 this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-                this.master = this.ctx.createGain();
-                this.master.gain.value = 0;
-                this.master.connect(this.ctx.destination);
+
+                this.natureGain = this.ctx.createGain();
+                this.natureGain.gain.value = 0;
+                this.natureGain.connect(this.ctx.destination);
+
+                this.lofiGain = this.ctx.createGain();
+                this.lofiGain.gain.value = 0;
+                this.lofiGain.connect(this.ctx.destination);
+
                 this.initialized = true;
 
                 this.createWind();
                 this.createLeaves();
-                await this.loadBirds();
-                await this.loadSheep();
+                this.loadBirds();
+                this.loadSheep();
+                this.loadLofiPlaylist();
             },
 
-            async toggle() {
+            async ensure() {
                 if (!this.initialized) await this.init();
                 if (this.ctx.state === 'suspended') await this.ctx.resume();
-
-                this.active = !this.active;
-                this.master.gain.linearRampToValueAtTime(
-                    this.active ? 1.0 : 0, this.ctx.currentTime + 0.8
-                );
-                document.getElementById('sound-btn').textContent = this.active ? '🔊' : '🔇';
             },
+
+            updateIcon() {
+                const btn = document.getElementById('audio-toggle');
+                btn.textContent = (this.natureOn || this.lofiOn) ? '🔊' : '🔇';
+            },
+
+            async setNature(on) {
+                await this.ensure();
+                this.natureOn = on;
+                this.natureGain.gain.linearRampToValueAtTime(on ? 1.0 : 0, this.ctx.currentTime + 0.8);
+                this.updateIcon();
+            },
+
+            async setLofi(on) {
+                await this.ensure();
+                this.lofiOn = on;
+                this.lofiGain.gain.linearRampToValueAtTime(on ? 1.0 : 0, this.ctx.currentTime + 0.8);
+                this.updateIcon();
+            },
+
+            togglePanel() {
+                this.panelOpen = !this.panelOpen;
+                document.getElementById('audio-panel').classList.toggle('open', this.panelOpen);
+            },
+
+            // --- Nature sounds ---
 
             createWind() {
                 const sr = this.ctx.sampleRate;
@@ -668,24 +750,23 @@
 
                 const filter = this.ctx.createBiquadFilter();
                 filter.type = 'lowpass';
-                filter.frequency.value = 350;
+                filter.frequency.value = 300;
 
-                // Slow LFO to gently vary wind intensity
                 const lfo = this.ctx.createOscillator();
                 const lfoGain = this.ctx.createGain();
                 lfo.type = 'sine';
-                lfo.frequency.value = 0.12;
-                lfoGain.gain.value = 80;
+                lfo.frequency.value = 0.1;
+                lfoGain.gain.value = 60;
                 lfo.connect(lfoGain);
                 lfoGain.connect(filter.frequency);
                 lfo.start();
 
                 const gain = this.ctx.createGain();
-                gain.gain.value = 0.12;
+                gain.gain.value = 0.03;
 
                 src.connect(filter);
                 filter.connect(gain);
-                gain.connect(this.master);
+                gain.connect(this.natureGain);
                 src.start();
             },
 
@@ -714,7 +795,6 @@
                 bp.frequency.value = 2200;
                 bp.Q.value = 0.5;
 
-                // Amplitude modulation for gusting effect
                 const lfo = this.ctx.createOscillator();
                 const lfoGain = this.ctx.createGain();
                 lfo.frequency.value = 0.25;
@@ -727,7 +807,7 @@
 
                 src.connect(bp);
                 bp.connect(gain);
-                gain.connect(this.master);
+                gain.connect(this.natureGain);
                 lfo.start();
                 src.start();
             },
@@ -743,11 +823,9 @@
                     const gain = this.ctx.createGain();
                     gain.gain.value = 0.18;
                     src.connect(gain);
-                    gain.connect(this.master);
+                    gain.connect(this.natureGain);
                     src.start();
-                } catch(e) {
-                    console.warn('Could not load bird sounds:', e);
-                }
+                } catch(e) { console.warn('Birds failed:', e); }
             },
 
             async loadSheep() {
@@ -756,16 +834,14 @@
                     const arr = await resp.arrayBuffer();
                     this.sheepBuffer = await this.ctx.decodeAudioData(arr);
                     this.scheduleSheep();
-                } catch(e) {
-                    console.warn('Could not load sheep sounds:', e);
-                }
+                } catch(e) { console.warn('Sheep failed:', e); }
             },
 
             scheduleSheep() {
                 if (!this.sheepBuffer) return;
-                const delay = 18000 + Math.random() * 35000; // 18-53s apart
+                const delay = 12000 + Math.random() * 25000;
                 setTimeout(() => {
-                    if (this.active) {
+                    if (this.natureOn) {
                         const src = this.ctx.createBufferSource();
                         src.buffer = this.sheepBuffer;
                         src.playbackRate.value = 0.85 + Math.random() * 0.3;
@@ -775,24 +851,57 @@
                         filter.frequency.value = 1000 + Math.random() * 400;
 
                         const gain = this.ctx.createGain();
-                        gain.gain.value = 0.025 + Math.random() * 0.02;
+                        gain.gain.value = 0.04 + Math.random() * 0.03;
 
-                        // Pan left or right for spatial feel
                         const pan = this.ctx.createStereoPanner();
                         pan.pan.value = (Math.random() - 0.5) * 1.6;
 
                         src.connect(filter);
                         filter.connect(gain);
                         gain.connect(pan);
-                        pan.connect(this.master);
+                        pan.connect(this.natureGain);
                         src.start();
                     }
                     this.scheduleSheep();
                 }, delay);
+            },
+
+            // --- Lofi music ---
+
+            async loadLofiPlaylist() {
+                this.lofiBuffers = [];
+                for (const url of this.lofiTracks) {
+                    try {
+                        const resp = await fetch(url);
+                        const arr = await resp.arrayBuffer();
+                        const buf = await this.ctx.decodeAudioData(arr);
+                        this.lofiBuffers.push(buf);
+                    } catch(e) { console.warn('Lofi track failed:', url, e); }
+                }
+                if (this.lofiBuffers.length > 0) this.playLofiTrack(0);
+            },
+
+            playLofiTrack(index) {
+                if (!this.lofiBuffers.length) return;
+                const i = index % this.lofiBuffers.length;
+                const src = this.ctx.createBufferSource();
+                src.buffer = this.lofiBuffers[i];
+
+                const gain = this.ctx.createGain();
+                gain.gain.value = 0.35;
+
+                src.connect(gain);
+                gain.connect(this.lofiGain);
+                src.start();
+                this.lofiSource = src;
+
+                src.onended = () => this.playLofiTrack(i + 1);
             }
         };
 
-        document.getElementById('sound-btn').addEventListener('click', () => Sound.toggle());
+        document.getElementById('audio-toggle').addEventListener('click', () => Audio.togglePanel());
+        document.getElementById('chk-nature').addEventListener('change', (e) => Audio.setNature(e.target.checked));
+        document.getElementById('chk-lofi').addEventListener('change', (e) => Audio.setLofi(e.target.checked));
 
         init();
     </script>
