@@ -105,7 +105,7 @@
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
 
-        const PIXEL_SCALE = 4;
+        const PIXEL_SCALE = 2.68;
         let cx = 0;
         let HORIZON = 0;
 
@@ -750,19 +750,20 @@
 
                 const filter = this.ctx.createBiquadFilter();
                 filter.type = 'lowpass';
-                filter.frequency.value = 300;
+                filter.frequency.value = 250;
 
+                // Very subtle variation — no rhythmic pulsing
                 const lfo = this.ctx.createOscillator();
                 const lfoGain = this.ctx.createGain();
                 lfo.type = 'sine';
-                lfo.frequency.value = 0.1;
-                lfoGain.gain.value = 60;
+                lfo.frequency.value = 0.03;
+                lfoGain.gain.value = 20;
                 lfo.connect(lfoGain);
                 lfoGain.connect(filter.frequency);
                 lfo.start();
 
                 const gain = this.ctx.createGain();
-                gain.gain.value = 0.03;
+                gain.gain.value = 0.012;
 
                 src.connect(filter);
                 filter.connect(gain);
@@ -839,7 +840,7 @@
 
             scheduleSheep() {
                 if (!this.sheepBuffer) return;
-                const delay = 12000 + Math.random() * 25000;
+                const delay = 30000 + Math.random() * 50000; // 30-80s apart
                 setTimeout(() => {
                     if (this.natureOn) {
                         const src = this.ctx.createBufferSource();
