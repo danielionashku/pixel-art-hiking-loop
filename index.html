@@ -571,94 +571,37 @@
             setTimeout(chirp, 1000 + Math.random() * 2000);
         }
 
-        // Sheep: Periodic "baa" sounds
-        function initSheep() {
-            function baa() {
-                if (!audioCtx || audioCtx.state === 'closed' || !audioPlaying) return;
-
-                const now = audioCtx.currentTime;
-                const duration = 0.4 + Math.random() * 0.3;
-                const baseFreq = 280 + Math.random() * 120;
-
-                // Main voice oscillator
-                const osc = audioCtx.createOscillator();
-                const oscGain = audioCtx.createGain();
-                const filter = audioCtx.createBiquadFilter();
-
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(baseFreq, now);
-                osc.frequency.linearRampToValueAtTime(baseFreq * 1.15, now + duration * 0.3);
-                osc.frequency.linearRampToValueAtTime(baseFreq * 0.9, now + duration);
-
-                // Vibrato for "baa" quality
-                const vibrato = audioCtx.createOscillator();
-                const vibratoGain = audioCtx.createGain();
-                vibrato.type = 'sine';
-                vibrato.frequency.value = 8 + Math.random() * 4;
-                vibratoGain.gain.value = 15;
-                vibrato.connect(vibratoGain);
-                vibratoGain.connect(osc.frequency);
-                vibrato.start(now);
-                vibrato.stop(now + duration + 0.05);
-
-                filter.type = 'bandpass';
-                filter.frequency.value = 800;
-                filter.Q.value = 2;
-
-                oscGain.gain.setValueAtTime(0, now);
-                oscGain.gain.linearRampToValueAtTime(0.12, now + 0.04);
-                oscGain.gain.setValueAtTime(0.1, now + duration * 0.4);
-                oscGain.gain.linearRampToValueAtTime(0, now + duration);
-
-                osc.connect(filter);
-                filter.connect(oscGain);
-                oscGain.connect(audioChannels.sheep.gain);
-
-                osc.start(now);
-                osc.stop(now + duration + 0.05);
-
-                // Occasional double-baa
-                if (Math.random() < 0.3) {
-                    const delay = duration + 0.15;
-                    const osc2 = audioCtx.createOscillator();
-                    const osc2Gain = audioCtx.createGain();
-                    const filter2 = audioCtx.createBiquadFilter();
-                    const dur2 = 0.25 + Math.random() * 0.15;
-
-                    osc2.type = 'sawtooth';
-                    osc2.frequency.setValueAtTime(baseFreq * 1.05, now + delay);
-                    osc2.frequency.linearRampToValueAtTime(baseFreq * 0.85, now + delay + dur2);
-
-                    const vib2 = audioCtx.createOscillator();
-                    const vib2Gain = audioCtx.createGain();
-                    vib2.type = 'sine';
-                    vib2.frequency.value = 10;
-                    vib2Gain.gain.value = 12;
-                    vib2.connect(vib2Gain);
-                    vib2Gain.connect(osc2.frequency);
-                    vib2.start(now + delay);
-                    vib2.stop(now + delay + dur2 + 0.05);
-
-                    filter2.type = 'bandpass';
-                    filter2.frequency.value = 800;
-                    filter2.Q.value = 2;
-
-                    osc2Gain.gain.setValueAtTime(0, now + delay);
-                    osc2Gain.gain.linearRampToValueAtTime(0.08, now + delay + 0.03);
-                    osc2Gain.gain.linearRampToValueAtTime(0, now + delay + dur2);
-
-                    osc2.connect(filter2);
-                    filter2.connect(osc2Gain);
-                    osc2Gain.connect(audioChannels.sheep.gain);
-
-                    osc2.start(now + delay);
-                    osc2.stop(now + delay + dur2 + 0.05);
-                }
-
-                setTimeout(baa, 8000 + Math.random() * 12000);
+        // Sheep: Sample-based bleating from recorded audio files
+        let sheepBuffers = [];
+        async function initSheep() {
+            const files = ['sheep.mp3', 'sheep2.mp3', 'sheep3.mp3'];
+            for (const file of files) {
+                try {
+                    const resp = await fetch(file);
+                    const arr = await resp.arrayBuffer();
+                    const buf = await audioCtx.decodeAudioData(arr);
+                    sheepBuffers.push(buf);
+                } catch(e) { /* skip failed loads */ }
             }
-
-            setTimeout(baa, 2000 + Math.random() * 5000);
+            if (sheepBuffers.length > 0) {
+                scheduleBaa();
+            }
+        }
+        function scheduleBaa() {
+            setTimeout(() => {
+                if (!audioCtx || audioCtx.state === 'closed' || !audioPlaying) {
+                    scheduleBaa();
+                    return;
+                }
+                const buf = sheepBuffers[Math.floor(Math.random() * sheepBuffers.length)];
+                const source = audioCtx.createBufferSource();
+                source.buffer = buf;
+                // Slight pitch variation for natural feel
+                source.playbackRate.value = 0.9 + Math.random() * 0.2;
+                source.connect(audioChannels.sheep.gain);
+                source.start();
+                scheduleBaa();
+            }, 8000 + Math.random() * 12000);
         }
 
         // Footsteps: Noise bursts synced to walk phase
@@ -671,25 +614,38 @@
 
             if ((lastFootstepPhase >= 0 && currentPhase < 0) || (lastFootstepPhase <= 0 && currentPhase > 0)) {
                 const now = audioCtx.currentTime;
-                const sampleLen = Math.floor(audioCtx.sampleRate * 0.08);
+                const sampleLen = Math.floor(audioCtx.sampleRate * 0.14);
                 const buffer = audioCtx.createBuffer(1, sampleLen, audioCtx.sampleRate);
                 const data = buffer.getChannelData(0);
 
+                // Soft, muted envelope - like stepping on grass/dirt
                 for (let i = 0; i < sampleLen; i++) {
-                    const env = Math.exp(-i / (sampleLen * 0.15));
-                    data[i] = (Math.random() * 2 - 1) * env * 0.5;
+                    const t = i / sampleLen;
+                    // Slow attack, gradual decay for a soft thud
+                    const attack = Math.min(1, t / 0.08);
+                    const decay = Math.exp(-i / (sampleLen * 0.35));
+                    const env = attack * decay;
+                    data[i] = (Math.random() * 2 - 1) * env * 0.25;
                 }
 
                 const source = audioCtx.createBufferSource();
                 source.buffer = buffer;
 
+                // Very low cutoff for muffled ground-step sound
                 const filter = audioCtx.createBiquadFilter();
                 filter.type = 'lowpass';
-                filter.frequency.value = 600 + Math.random() * 200;
-                filter.Q.value = 0.5;
+                filter.frequency.value = 180 + Math.random() * 80;
+                filter.Q.value = 0.3;
+
+                // Second filter pass for extra muffling
+                const filter2 = audioCtx.createBiquadFilter();
+                filter2.type = 'lowpass';
+                filter2.frequency.value = 350;
+                filter2.Q.value = 0.4;
 
                 source.connect(filter);
-                filter.connect(audioChannels.footsteps.gain);
+                filter.connect(filter2);
+                filter2.connect(audioChannels.footsteps.gain);
 
                 source.start(now);
             }
