@@ -410,7 +410,7 @@
         // Music: Load and loop MP3 track
         async function initLofiMusic() {
             try {
-                const resp = await fetch('Yestalgia - Morning Reset.mp3');
+                const resp = await fetch('morning-reset.mp3');
                 const arr = await resp.arrayBuffer();
                 const buf = await audioCtx.decodeAudioData(arr);
                 const source = audioCtx.createBufferSource();
