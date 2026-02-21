@@ -107,7 +107,7 @@
             </div>
             <div class="audio-slider">
                 <label>Sheep</label>
-                <input type="range" min="0" max="100" value="35" data-channel="sheep">
+                <input type="range" min="0" max="100" value="8" data-channel="sheep">
             </div>
         </div>
     </div>
@@ -386,7 +386,7 @@
             wind: { gain: null, volume: 0.5, nodes: [] },
             birds: { gain: null, volume: 0.3, nodes: [] },
             footsteps: { gain: null, volume: 0.4, nodes: [] },
-            sheep: { gain: null, volume: 0.35, nodes: [] }
+            sheep: { gain: null, volume: 0.08, nodes: [] }
         };
 
         function initAudio() {
@@ -407,84 +407,19 @@
             audioPlaying = true;
         }
 
-        // Lofi Music: Triangle wave chord pads with vinyl crackle
-        function initLofiMusic() {
-            const chords = [
-                [349.23, 440.00, 523.25, 659.25],  // Fmaj7
-                [329.63, 392.00, 493.88, 587.33],  // Em7
-                [293.66, 349.23, 440.00, 523.25],  // Dm7
-                [261.63, 329.63, 392.00, 493.88]   // Cmaj7
-            ];
-
-            const bpm = 68;
-            const barDuration = (60 / bpm) * 4;
-            let currentChord = 0;
-            let musicTimeout = null;
-
-            function playChord() {
-                if (!audioCtx || audioCtx.state === 'closed') return;
-
-                const chord = chords[currentChord];
-                const now = audioCtx.currentTime;
-
-                chord.forEach(freq => {
-                    const osc = audioCtx.createOscillator();
-                    const oscGain = audioCtx.createGain();
-                    const filter = audioCtx.createBiquadFilter();
-
-                    osc.type = 'triangle';
-                    osc.frequency.value = freq + (Math.random() - 0.5) * 2; // slight detuning
-
-                    filter.type = 'lowpass';
-                    filter.frequency.value = 800;
-                    filter.Q.value = 1;
-
-                    oscGain.gain.setValueAtTime(0, now);
-                    oscGain.gain.linearRampToValueAtTime(0.07, now + 0.4);
-                    oscGain.gain.linearRampToValueAtTime(0.045, now + barDuration * 0.7);
-                    oscGain.gain.linearRampToValueAtTime(0, now + barDuration);
-
-                    osc.connect(filter);
-                    filter.connect(oscGain);
-                    oscGain.connect(audioChannels.music.gain);
-
-                    osc.start(now);
-                    osc.stop(now + barDuration + 0.1);
-                });
-
-                currentChord = (currentChord + 1) % chords.length;
-                musicTimeout = setTimeout(playChord, barDuration * 1000);
-            }
-
-            // Vinyl crackle overlay
-            const bufferSize = audioCtx.sampleRate * 2;
-            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-            const data = buffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) {
-                data[i] = Math.random() < 0.003 ? (Math.random() - 0.5) * 0.3 : 0;
-            }
-
-            const crackleSource = audioCtx.createBufferSource();
-            const crackleGain = audioCtx.createGain();
-            const crackleFilter = audioCtx.createBiquadFilter();
-
-            crackleSource.buffer = buffer;
-            crackleSource.loop = true;
-
-            crackleFilter.type = 'bandpass';
-            crackleFilter.frequency.value = 3000;
-            crackleFilter.Q.value = 0.5;
-
-            crackleGain.gain.value = 0.15;
-
-            crackleSource.connect(crackleFilter);
-            crackleFilter.connect(crackleGain);
-            crackleGain.connect(audioChannels.music.gain);
-
-            crackleSource.start();
-            audioChannels.music.nodes.push(crackleSource);
-
-            playChord();
+        // Music: Load and loop MP3 track
+        async function initLofiMusic() {
+            try {
+                const resp = await fetch('Yestalgia - Morning Reset.mp3');
+                const arr = await resp.arrayBuffer();
+                const buf = await audioCtx.decodeAudioData(arr);
+                const source = audioCtx.createBufferSource();
+                source.buffer = buf;
+                source.loop = true;
+                source.connect(audioChannels.music.gain);
+                source.start();
+                audioChannels.music.nodes.push(source);
+            } catch(e) { console.warn('Could not load music track:', e); }
         }
 
         // Wind: Brown noise through modulated low-pass filter
