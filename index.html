@@ -95,7 +95,7 @@
             </div>
             <div class="audio-slider">
                 <label>Wind</label>
-                <input type="range" min="0" max="100" value="50" data-channel="wind">
+                <input type="range" min="0" max="100" value="20" data-channel="wind">
             </div>
             <div class="audio-slider">
                 <label>Birds</label>
@@ -383,7 +383,7 @@
         let audioPlaying = false;
         let audioChannels = {
             music: { gain: null, volume: 0.5, nodes: [] },
-            wind: { gain: null, volume: 0.5, nodes: [] },
+            wind: { gain: null, volume: 0.2, nodes: [] },
             birds: { gain: null, volume: 0.3, nodes: [] },
             footsteps: { gain: null, volume: 0.4, nodes: [] },
             sheep: { gain: null, volume: 0.08, nodes: [] }
